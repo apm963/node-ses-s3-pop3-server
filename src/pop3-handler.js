@@ -233,7 +233,8 @@ export class Pop3Handler {
                     key: (s3ObjectMeta.Key ?? ''),
                     size: s3ObjectMeta.Size,
                 }))
-                .filter(objectProps => objectProps.uid !== 'AMAZON_SES_SETUP_NOTIFICATION');
+                .filter(objectProps => objectProps.uid !== 'AMAZON_SES_SETUP_NOTIFICATION')
+                .map(objectProps => ({...objectProps, uid: `${objectProps.uid}_d1`})); // DEBUG: We are using this as a cache-breaker during the development process
             
             console.debug(`Completed populateMessageList('${bucket}', '${prefix}')`);
         }
