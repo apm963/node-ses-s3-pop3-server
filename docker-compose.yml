@@ -1,0 +1,15 @@
+version: "3"
+services:
+  pop3-server:
+    image: "node-ses-s3-pop3-server:latest"
+    command: '--s3-bucket MYBUCKET --s3-object-prefix MYOBJECTPREFIX_OPTIONAL'
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "110:110"
+    networks:
+      - default
+networks:
+  default:
