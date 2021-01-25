@@ -166,7 +166,7 @@ export class Pop3Handler {
                     output = '-ERR no such message';
                     break;
                 }
-
+                
                 const message = await this.getMessageItem(this.s3Bucket, this.messageList[messageNum - 1].uid);
                 
                 output = `+OK ${message.size} octets${eol}${message.data}${eol}.`;
@@ -268,14 +268,14 @@ export class Pop3Handler {
             const objectBodyBuffer = ret.Body;
             const objectBodyStr = objectBodyBuffer.toString('utf-8');
             
-            const [top, bot] = objectBodyStr.split('\r\n\r\n', 2);
+            const [top, ...bot] = objectBodyStr.split('\r\n\r\n');
             
             /** @type {{data: unknown, size: number, top: string, bot: string}} */
             const message = {
                 data: objectBodyBuffer,
                 size: objectBodyBuffer.length,
                 top,
-                bot: (bot ?? '').trimLeft().split('\r\n'),
+                bot,
             };
             
             // Cache the result
