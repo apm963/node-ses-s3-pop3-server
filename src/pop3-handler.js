@@ -193,6 +193,12 @@ export class Pop3Handler {
             }
             case 'QUIT': {
                 output = '+OK nodejs POP3 server signing off';
+                // This session will no longer be used - clean up
+                // REVIEW: Do we want to move this to a reset() method or similar?
+                this.username = '';
+                this.loginValidated = false;
+                this.messageList = [];
+                this.messages = {};
                 break;
             }
         }
