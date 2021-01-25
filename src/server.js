@@ -32,10 +32,12 @@ const argv = yargs(hideBin(process.argv))
 const { port, s3Bucket, s3ObjectPrefix } = argv;
 
 const telnetWrite = (client, data) => {
+    const fData = data.replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+    const truncateData = fData.length > 52;
+    console.debug(`DEBUG - send: '${fData.substr(0, 52)}'` + (truncateData ? '...' : ''));
+    
     const eol = "\r\n";
     data += eol;
-    const truncateData = data.length > 52;
-    console.debug(`DEBUG - send: '${data.substr(0, 52)}'` + (truncateData ? '...' : ''));
     client.write(data);
 };
 
