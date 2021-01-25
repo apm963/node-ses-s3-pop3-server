@@ -63,10 +63,20 @@ const server = telnet.createServer(client => {
     
     // listen for the actual data from the client
     client.on('data', async b => {
+        // Client sent data to us
         console.debug(`DEBUG - recv: '${b}'`);
         const res = await handler.processInput(b);
         if (res.shouldWrite) {
             telnetWrite(client, res.output);
+        }
+        if (`${b}`.trim().toUpperCase() === 'QUIT') {
+            // This was originally emitted in the handler.processInput but that stopped working after that
+            // was made into an async method. This was due to the way the event loop stack's structure was
+            // changed - the `nextTick(() => handler.emit('close'))` was being added to the stack first, then
+            // the Promise's resolution (the `await` a few lines up from here) was being added to the stack.
+            // The order of operations is important here because we'll get a fatal if we try to write data to
+            // the socket after it has been closed.
+            handler.emit('close', 'user');
         }
     });
     

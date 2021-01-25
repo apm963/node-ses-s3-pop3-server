@@ -190,7 +190,6 @@ export class Pop3Handler {
             }
             case 'QUIT': {
                 output = '+OK nodejs POP3 server signing off';
-                nextTick(() => this.emit('close', 'user'));
                 break;
             }
         }
