@@ -38,7 +38,10 @@ export class Pop3Handler {
          */
         this.messages = {};
         
-        this.on('login', () => this.populateMessageList(this.s3Bucket, this.s3ObjectPrefix));
+        this.on('login', async () => {
+            console.debug(`Successful login from user '${this.username}'`);
+            await this.populateMessageList(this.s3Bucket, this.s3ObjectPrefix);
+        });
         
         return this;
     }
@@ -49,9 +52,9 @@ export class Pop3Handler {
         return this;
     }
     
-    emit(eventName, ...data) {
+    async emit(eventName, ...data) {
         if (eventName in this.eventCallbacks) {
-            this.eventCallbacks[eventName].forEach(cb => cb(...data));
+            await Promise.all(this.eventCallbacks[eventName].map(cb => cb(...data)));
         }
         return this;
     }
@@ -97,7 +100,7 @@ export class Pop3Handler {
                 const loginRes = this.performLogin(args);
                 if (loginRes) {
                     this.loginValidated = true;
-                    nextTick(() => this.emit('login'));
+                    await this.emit('login');
                     output = '+OK pass accepted';
                 }
                 else {
