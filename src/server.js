@@ -32,9 +32,11 @@ const argv = yargs(hideBin(process.argv))
 const { port, s3Bucket, s3ObjectPrefix } = argv;
 
 const telnetWrite = (client, data) => {
-    client.write(data);
+    const eol = "\r\n";
+    data += eol;
     const truncateData = data.length > 52;
     console.debug(`DEBUG - send: '${data.substr(0, 52)}'` + (truncateData ? '...' : ''));
+    client.write(data);
 };
 
 const server = telnet.createServer(client => {
@@ -73,7 +75,7 @@ const server = telnet.createServer(client => {
         console.debug(`DEBUG - Connection closed ('${clientMeta.address}', ${clientMeta.port}, reason: ${reason})`);
     });
     
-    client.write( handler.onConnectMessage() );
+    telnetWrite(client, handler.onConnectMessage());
     
     console.debug(`DEBUG - Connected by ('${clientMeta.address}', ${clientMeta.port})`);
     
