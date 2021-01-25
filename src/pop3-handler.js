@@ -109,82 +109,95 @@ export class Pop3Handler {
                 break;
             }
             case 'STAT': {
-                output = `+OK ${this.messageList.length} ${this.messageList.reduce((carry, item) => carry + item.size, 0)}`;
+                const unSparseMessageList = this.messageList.filter(v => v);
+                output = `+OK ${unSparseMessageList.length} ${unSparseMessageList.reduce((carry, item) => carry + item.size, 0)}`;
                 break;
             }
             case 'LIST': {
+                const potentiallySparseMessageList = this.messageList;
+                const unSparseMessageList = potentiallySparseMessageList.filter(v => v);
                 if (args) {
                     // Requested a specific message number
-                    const messageMeta = this.messageList[args - 1];
+                    const messageMeta = potentiallySparseMessageList[args - 1];
                     if (messageMeta) {
                         output = `+OK ${args} ${messageMeta.size}`;
                     }
                     else {
-                        output = `-ERR no such message, only ${this.messageList.length} messages in maildrop`;
+                        output = `-ERR no such message, only ${unSparseMessageList.length} messages in maildrop`;
                     }
                 }
                 else {
                     // List all
-                    output = `+OK ${this.messageList.length} messages (${this.messageList.reduce((carry, item) => carry + item.size, 0)} octets)${eol}${Object.values(this.messageList).map((d, i) => `${i+1} ${d.size}`).join(eol)}`;
+                    output = `+OK ${unSparseMessageList.length} messages (${unSparseMessageList.reduce((carry, item) => carry + item.size, 0)} octets)${eol}${Object.values(unSparseMessageList).map((d, i) => `${i+1} ${d.size}`).join(eol)}`;
                 }
                 break;
             }
             case 'UIDL': {
+                const potentiallySparseMessageList = this.messageList;
+                const unSparseMessageList = potentiallySparseMessageList.filter(v => v);
                 if (args) {
                     // Requested a specific message number
-                    const messageMeta = this.messageList[args - 1];
+                    const messageMeta = potentiallySparseMessageList[args - 1];
                     if (messageMeta) {
                         output = `+OK ${args} ${messageMeta.uid}`;
                     }
                     else {
-                        output = `-ERR no such message, only ${this.messageList.length} messages in maildrop`;
+                        output = `-ERR no such message, only ${unSparseMessageList.length} messages in maildrop`;
                     }
                 }
                 else {
                     // List all
-                    output = `+OK${eol}${Object.values(this.messageList).map((d, i) => `${i + 1} ${d.uid}`).join(eol)}${eol}.`;
+                    output = `+OK${eol}${Object.values(unSparseMessageList).map((d, i) => `${i + 1} ${d.uid}`).join(eol)}${eol}.`;
                 }
                 break;
             }
             case 'TOP': {
+                const potentiallySparseMessageList = this.messageList;
+                const unSparseMessageList = potentiallySparseMessageList.filter(v => v);
                 const [messageNum, numLines] = args.split(/ /g);
                 
-                if (messageNum > this.messageList.length) {
+                if (messageNum > unSparseMessageList.length) {
                     output = '-ERR no such message';
                     break;
                 }
                 
-                const message = await this.getMessageItem(this.s3Bucket, this.messageList[messageNum - 1].uid);
+                const message = await this.getMessageItem(this.s3Bucket, potentiallySparseMessageList[messageNum - 1].uid);
                 
                 output = `+OK top of message follows${eol}${message.top}${eol}${eol}${ message.bot.slice(0, numLines).join(eol) }${eol}.`;
                 break;
             }
             case 'RETR': {
+                const potentiallySparseMessageList = this.messageList;
+                const unSparseMessageList = potentiallySparseMessageList.filter(v => v);
                 const messageNum = args;
                 
-                if (messageNum > this.messageList.length) {
+                if (messageNum > unSparseMessageList.length) {
                     output = '-ERR no such message';
                     break;
                 }
                 
-                const message = await this.getMessageItem(this.s3Bucket, this.messageList[messageNum - 1].uid);
+                const message = await this.getMessageItem(this.s3Bucket, potentiallySparseMessageList[messageNum - 1].uid);
                 
                 output = `+OK ${message.size} octets${eol}${message.data}${eol}.`;
                 break;
             }
             case 'DELE': {
+                const potentiallySparseMessageList = this.messageList;
+                const unSparseMessageList = potentiallySparseMessageList.filter(v => v);
                 const messageNum = args;
                 
-                if (messageNum > this.messageList.length) {
+                if (messageNum > unSparseMessageList.length) {
                     output = `-ERR message ${messageNum} already deleted`;
                     break;
                 }
-
-                const message = await this.getMessageItem(this.s3Bucket, this.messageList[messageNum - 1].uid);
                 
-                // TODO: Support deleting
-                
-                output = `+OK message ${messageNum} deleted`;
+                try {
+                    await this.deleteMessageItem(this.s3Bucket, potentiallySparseMessageList[messageNum - 1].uid);
+                    output = `+OK message ${messageNum} deleted`;
+                }
+                catch (err) {
+                    output = `-ERR message not found or S3 error encountered`;
+                }
                 break;
             }
             case 'NOOP': {
@@ -290,6 +303,52 @@ export class Pop3Handler {
             console.debug(`Completed getMessageItem('${bucket}', '${uid}')`);
             
             return message;
+        }
+        catch (err) {
+            console.error(err);
+            // Rethrow
+            throw err;
+        }
+        
+    }
+    
+    /** @throws Error when UID not found in messageList or if there is an error thrown by S3Client */
+    async deleteMessageItem(bucket, uid) {
+        
+        // Locate metadata associated with this UID
+        const matchedMessageMetadata = this.messageList.filter(messageMetadata => messageMetadata.uid === uid);
+        let key = null;
+        
+        if (matchedMessageMetadata.length > 0) {
+            key = matchedMessageMetadata[0].key;
+            if (matchedMessageMetadata.length > 1) {
+                console.warn(`Multiple metadata elements found in messageList with UID '${uid}'; deleting the objected associated with the first matched element ('${key}')`);
+            }
+        }
+        else {
+            // No matched UIDs found in our messageList
+            throw new Error(`UID ${uid} not found in messageList`);
+        }
+        
+        /** @type {AWS.S3.GetObjectRequest} */
+        const opts = { Bucket: bucket, Key: key };
+        
+        // Cache miss
+        try {
+            await this.s3Client.deleteObject(opts).promise();
+            
+            // Uncache this item (sparse array)
+            delete this.messages[uid];
+            for (let i in this.messageList) {
+                const messageMetadata = this.messageList[i];
+                if (messageMetadata.key === key) {
+                    delete this.messageList[i];
+                }
+            }
+            
+            console.debug(`Completed deleteMessageItem('${bucket}', '${uid}')`);
+            
+            return true;
         }
         catch (err) {
             console.error(err);
