@@ -203,7 +203,7 @@ export class Pop3Handler {
     performLogin(pass) {
         const username = this.username;
         // TODO: Validate login
-        if (username === 'test' && pass === 'pass') {
+        if (pass === 'test') { // username === 'test' && pass === 'pass'
             return true;
         }
         return false;
